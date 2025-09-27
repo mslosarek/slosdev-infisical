@@ -1,0 +1,29 @@
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# SSL certificates
+ssl/
+*.pem
+*.crt
+*.key
+
+# Docker volumes
+postgres-data/
+redis-data/
+infisical-data/
+
+# Logs
+*.log
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo

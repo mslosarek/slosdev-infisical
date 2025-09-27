@@ -1,0 +1,6 @@
+# Infisical Database Backup Schedule
+# Format: minute hour day month weekday command
+
+# Backup every 12 hours - at 2:00 AM and 2:00 PM
+0 2 * * * /usr/local/bin/backup.sh >> /var/log/backup.log 2>&1
+0 14 * * * /usr/local/bin/backup.sh >> /var/log/backup.log 2>&1

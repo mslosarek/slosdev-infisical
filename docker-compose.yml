@@ -1,0 +1,141 @@
+version: '3.8'
+
+services:
+  infisical:
+    image: infisical/infisical:latest
+    container_name: infisical
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "8080:8080"
+    environment:
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      JWT_SIGNUP_SECRET: ${JWT_SIGNUP_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_AUTH_SECRET: ${JWT_AUTH_SECRET}
+      JWT_SERVICE_SECRET: ${JWT_SERVICE_SECRET}
+      JWT_PROVIDER_AUTH_SECRET: ${JWT_PROVIDER_AUTH_SECRET}
+
+      # Database Configuration
+      DB_CONNECTION_URI: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+
+      # Redis Configuration
+      REDIS_URL: redis://redis:6379
+
+      # Site Configuration
+      SITE_URL: https://infisical.slosdev.com
+
+      # SMTP Configuration (optional)
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS:-noreply@infisical.slosdev.com}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Infisical}
+
+      # Telemetry
+      TELEMETRY_ENABLED: ${TELEMETRY_ENABLED:-false}
+
+      # Auth Methods
+      AUTH_SECRET: ${AUTH_SECRET}
+      CLIENT_SECRET_GITHUB_LOGIN: ${CLIENT_SECRET_GITHUB_LOGIN:-}
+      CLIENT_ID_GITHUB_LOGIN: ${CLIENT_ID_GITHUB_LOGIN:-}
+      CLIENT_SECRET_GITLAB_LOGIN: ${CLIENT_SECRET_GITLAB_LOGIN:-}
+      CLIENT_ID_GITLAB_LOGIN: ${CLIENT_ID_GITLAB_LOGIN:-}
+      CLIENT_SECRET_GOOGLE_LOGIN: ${CLIENT_SECRET_GOOGLE_LOGIN:-}
+      CLIENT_ID_GOOGLE_LOGIN: ${CLIENT_ID_GOOGLE_LOGIN:-}
+
+      # Additional Configuration
+      NODE_ENV: production
+      HTTPS_ENABLED: ${HTTPS_ENABLED:-false}
+      TRUST_PROXY: true
+    networks:
+      - infisical-network
+    volumes:
+      - infisical-data:/app/data
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: infisical-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - infisical-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: infisical-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - infisical-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backup service
+  backup:
+    build: ./backup
+    container_name: infisical-backup
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    environment:
+      # PostgreSQL connection
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+
+      # AWS S3 Configuration
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      AWS_REGION: ${AWS_REGION:-us-east-1}
+      S3_BUCKET: ${S3_BUCKET}
+
+      # Backup settings
+      DELETE_OLD_BACKUPS: ${DELETE_OLD_BACKUPS:-true}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - ../.env:/config/.env:ro
+      - backup-logs:/var/log
+    networks:
+      - infisical-network
+
+  # Optional: Cloudflare Tunnel container
+  # Uncomment if you want to manage the tunnel via Docker Compose
+  # cloudflared:
+  #   image: cloudflare/cloudflared:latest
+  #   container_name: infisical-cloudflared
+  #   restart: unless-stopped
+  #   command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+  #   networks:
+  #     - infisical-network
+  #   depends_on:
+  #     - infisical
+
+networks:
+  infisical-network:
+    driver: bridge
+
+volumes:
+  infisical-data:
+  postgres-data:
+  redis-data:
+  backup-logs:
