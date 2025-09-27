@@ -52,6 +52,7 @@ services:
       NODE_ENV: production
       HTTPS_ENABLED: ${HTTPS_ENABLED:-false}
       TRUST_PROXY: true
+      DISABLE_SIGNUP: ${DISABLE_SIGNUP:-false}
     networks:
       - infisical-network
     volumes:
