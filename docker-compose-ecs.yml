@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  infisical:
+    image: infisical/infisical:latest
+    container_name: infisical
+    restart: unless-stopped
+    depends_on:
+      - redis
+    ports:
+      - "8080:8080"
+    environment:
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      JWT_SIGNUP_SECRET: ${JWT_SIGNUP_SECRET}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
+      JWT_AUTH_SECRET: ${JWT_AUTH_SECRET}
+      JWT_SERVICE_SECRET: ${JWT_SERVICE_SECRET}
+      JWT_PROVIDER_AUTH_SECRET: ${JWT_PROVIDER_AUTH_SECRET}
+
+      # Database Configuration
+      DB_CONNECTION_URI: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:5432/${POSTGRES_DB}?sslmode=require
+
+      # Redis Configuration
+      REDIS_URL: redis://redis:6379
+
+      # Site Configuration
+      SITE_URL: https://infisical.slosarek.com
+
+      # SMTP Configuration (optional)
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_FROM_ADDRESS: ${SMTP_FROM_ADDRESS:-noreply@infisical.slosdev.com}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Infisical}
+
+      # Telemetry
+      TELEMETRY_ENABLED: false
+
+      # Auth Methods
+      AUTH_SECRET: ${AUTH_SECRET}
+
+      # Additional Configuration
+      NODE_ENV: production
+      HTTPS_ENABLED: false
+      TRUST_PROXY: true
+      DISABLE_SIGNUP: true
+    networks:
+      - infisical-network
+    volumes:
+      - infisical-data:/app/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: infisical-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - infisical-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  infisical-network:
+    driver: bridge
+
+volumes:
+  infisical-data:
+  redis-data:

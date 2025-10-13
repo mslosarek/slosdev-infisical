@@ -29,14 +29,14 @@ echo "Starting restore..."
 # Decompress if needed
 if [[ "$BACKUP_FILE" == *.gz ]]; then
     echo "Decompressing backup..."
-    gunzip -c "$BACKUP_FILE" | docker-compose exec -T postgres psql -U infisical infisical
+    gunzip -c "$BACKUP_FILE" | docker compose exec -T postgres psql -U infisical infisical
 else
-    docker-compose exec -T postgres psql -U infisical infisical < "$BACKUP_FILE"
+    docker compose exec -T postgres psql -U infisical infisical < "$BACKUP_FILE"
 fi
 
 if [ $? -eq 0 ]; then
     echo "✓ Restore completed successfully"
-    echo "Please restart the Infisical container: docker-compose restart infisical"
+    echo "Please restart the Infisical container: docker compose restart infisical"
 else
     echo "✗ Restore failed!"
     exit 1

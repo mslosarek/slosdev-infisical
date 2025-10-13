@@ -53,8 +53,6 @@ PGPASSWORD="${POSTGRES_PASSWORD}" pg_dump \
     -d "${POSTGRES_DB}" \
     --verbose \
     --clean \
-    --no-owner \
-    --no-privileges \
     --if-exists \
     > "$BACKUP_FILE"
 
@@ -89,19 +87,37 @@ aws s3 ls "s3://${S3_BUCKET}/backups/" --region "${AWS_REGION}" | tail -5
 # Optional: Delete old backups from S3 (older than 30 days)
 if [ "${DELETE_OLD_BACKUPS}" = "true" ]; then
     log "Cleaning up old backups (>30 days)..."
-    aws s3 ls "s3://${S3_BUCKET}/backups/" --region "${AWS_REGION}" | \
-    while read -r line; do
-        createDate=$(echo "$line" | awk '{print $1" "$2}')
-        createDate=$(date -d "$createDate" +%s)
-        olderThan=$(date -d "30 days ago" +%s)
-        if [ "$createDate" -lt "$olderThan" ]; then
+
+    # Calculate cutoff date (30 days ago) - BusyBox compatible
+    CUTOFF_DATE=$(date -d "-30 days" +%Y-%m-%d 2>/dev/null || date -v-30d +%Y-%m-%d 2>/dev/null || date +%Y-%m-%d -d "30 days ago" 2>/dev/null)
+
+    # If date calculation failed, use a more compatible approach
+    if [ -z "$CUTOFF_DATE" ]; then
+        # Calculate seconds since epoch for 30 days ago
+        CURRENT_EPOCH=$(date +%s)
+        THIRTY_DAYS_SECONDS=$((30 * 24 * 60 * 60))
+        CUTOFF_EPOCH=$((CURRENT_EPOCH - THIRTY_DAYS_SECONDS))
+
+        aws s3api list-objects --bucket "${S3_BUCKET}" --prefix "backups/" --region "${AWS_REGION}" --query "Contents[?LastModified<='$(date -d @${CUTOFF_EPOCH} -Iseconds 2>/dev/null || date -r ${CUTOFF_EPOCH} -Iseconds)'].Key" --output text | \
+        while read -r key; do
+            if [ "$key" != "" ] && [ "$key" != "None" ]; then
+                log "Deleting old backup: $key"
+                aws s3 rm "s3://${S3_BUCKET}/$key" --region "${AWS_REGION}"
+            fi
+        done
+    else
+        # Original approach with compatible date
+        aws s3 ls "s3://${S3_BUCKET}/backups/" --region "${AWS_REGION}" | \
+        while read -r line; do
+            createDate=$(echo "$line" | awk '{print $1}')
             fileName=$(echo "$line" | awk '{print $4}')
-            if [ "$fileName" != "" ]; then
+
+            if [ "$fileName" != "" ] && [ "$createDate" \< "$CUTOFF_DATE" ]; then
                 log "Deleting old backup: $fileName"
                 aws s3 rm "s3://${S3_BUCKET}/backups/$fileName" --region "${AWS_REGION}"
             fi
-        fi
-    done
+        done
+    fi
 fi
 
 log "✓ Backup completed successfully"
